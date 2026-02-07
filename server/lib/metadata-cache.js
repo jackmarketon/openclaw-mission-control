@@ -2,7 +2,7 @@ import fs from 'fs/promises';
 import { existsSync } from 'fs';
 import { join, basename } from 'path';
 import { homedir } from 'os';
-import { extractRepoAndBranch, extractPR, inferSessionType } from './extractors.js';
+import { extractRepoAndBranch, extractPR, extractPreview, inferSessionType } from './extractors.js';
 
 /** @typedef {import('./types.js').SessionMetadata} SessionMetadata */
 /** @typedef {import('./types.js').CacheSnapshot} CacheSnapshot */
@@ -128,9 +128,10 @@ export class MetadataCache {
       }
     }
 
-    // Extract repo, branch, PR metadata
+    // Extract repo, branch, PR, preview metadata
     const { repo, repoOwner, branch } = extractRepoAndBranch(lines);
     const pr = extractPR(lines);
+    const preview = extractPreview(lines);
 
     // Infer session type
     const type = inferSessionType(toolCalls, lines);
@@ -151,6 +152,7 @@ export class MetadataCache {
       repoOwner,
       branch,
       pr: Object.keys(pr).length > 0 ? pr : undefined,
+      preview: Object.keys(preview).length > 0 ? preview : undefined,
       type,
       status,
       createdAt: first.timestamp,
