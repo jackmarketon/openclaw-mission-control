@@ -36,9 +36,13 @@ app.get('/api/sessions', (req, res) => {
 const webDistPath = join(__dirname, '../web/dist');
 app.use(express.static(webDistPath));
 
-// Fallback to index.html for SPA routing
-app.get('*', (req, res) => {
-  res.sendFile(join(webDistPath, 'index.html'));
+// Fallback to index.html for SPA routing (catch-all after API routes)
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api')) {
+    res.sendFile(join(webDistPath, 'index.html'));
+  } else {
+    next();
+  }
 });
 
 const server = app.listen(PORT, 'localhost', () => {
