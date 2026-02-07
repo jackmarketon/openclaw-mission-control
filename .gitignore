@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Build outputs
+dist/
+build/
+*.log
+
+# Environment
+.env
+.env.local
+
+# Config overrides
+config.json
+
+# Cache
+cache.json
+*.cache
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temp
+tmp/
+temp/
