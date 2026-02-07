@@ -6,6 +6,7 @@ import { WebSocketServer } from 'ws';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { MetadataCache } from './lib/metadata-cache.js';
+import { SessionMonitor } from './lib/session-monitor.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -16,6 +17,10 @@ const app = express();
 // Initialize metadata cache
 const cache = new MetadataCache();
 await cache.init();
+
+// Initialize session monitor
+const monitor = new SessionMonitor(cache);
+await monitor.start();
 
 // Health check
 app.get('/health', (req, res) => {
@@ -86,9 +91,33 @@ wss.on('connection', (ws) => {
   ws.send(JSON.stringify({ type: 'connected', timestamp: new Date().toISOString() }));
 });
 
+// Broadcast session updates to all connected clients
+function broadcast(message) {
+  const payload = JSON.stringify(message);
+  for (const client of wss.clients) {
+    if (client.readyState === 1) { // OPEN
+      client.send(payload);
+    }
+  }
+}
+
+// Wire up monitor events to WebSocket broadcasts
+monitor.on('session:new', (metadata) => {
+  broadcast({ type: 'session:new', session: metadata, timestamp: new Date().toISOString() });
+});
+
+monitor.on('session:update', ({ sessionId, changes, metadata }) => {
+  broadcast({ type: 'session:update', sessionId, changes, timestamp: new Date().toISOString() });
+});
+
+monitor.on('session:deleted', ({ sessionId, metadata }) => {
+  broadcast({ type: 'session:deleted', sessionId, timestamp: new Date().toISOString() });
+});
+
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('SIGTERM received, shutting down gracefully');
+  monitor.stop();
   wss.close(() => {
     server.close(() => {
       process.exit(0);
