@@ -1,36 +1,37 @@
 # OpenClaw Mission Control
 
-Real-time dashboard for monitoring OpenClaw agent sessions, work context, and deploy previews.
+**Real-time dashboard for monitoring OpenClaw agent sessions.**
 
-## Features
+Monitor all your agent sessions in one place: see what they're working on, track PRs, view deploy previews, and get live updates as sessions progress.
 
-- **Live session monitoring** — See all active agent sessions in real-time
-- **Work context detection** — Auto-detects repos, branches, PRs, and preview URLs
-- **Session type inference** — Automatically categorizes sessions (coding, research, etc.)
-- **Local-first** — Runs entirely on your machine, no cloud dependency
-- **Zero-config** — Works out-of-the-box after installation
+## ✨ Features
 
-## Installation
+- **📊 Live Session Monitoring** — Real-time view of all active agent sessions
+- **🔍 Smart Metadata Detection** — Auto-extracts repos, branches, PRs, and deploy previews
+- **🎯 Filtering & Search** — Find sessions by type, status, repo, or agent
+- **📈 Stats Overview** — Quick glance at active sessions, coding work, and PRs
+- **🔗 Quick Links** — Jump to PRs, deploy previews, or repositories
+- **⚡ WebSocket Updates** — Dashboard updates instantly when sessions change
+- **🌙 Dark Theme** — Easy on the eyes for long monitoring sessions
+
+## 🚀 Quick Start
+
+### Installation
 
 ```bash
-openclaw skill install mission-control
-```
-
-Or manually:
-
-```bash
+# Clone or install via OpenClaw
 git clone https://github.com/jackmarketon/openclaw-mission-control.git ~/.openclaw/skills/mission-control
 cd ~/.openclaw/skills/mission-control
 ./install.sh
 ```
 
-## Usage
+### Usage
 
 ```bash
 # Start the dashboard server
 mission-control start
 
-# Open dashboard in browser
+# Open in browser (http://localhost:3030)
 mission-control open
 
 # Check status
@@ -43,41 +44,145 @@ mission-control logs
 mission-control stop
 ```
 
-Dashboard will be available at http://localhost:3030
+## 📸 Screenshot
 
-## Requirements
+Dashboard shows:
+- Session type badges (coding, research, testing, chat, deployment)
+- Repository and branch information
+- PR numbers with links
+- Deploy preview URLs (Netlify, Vercel)
+- Status indicators (active, idle, completed)
+- Expandable details for each session
 
-- OpenClaw gateway running
-- Node.js 20+
-- Active agent sessions in `~/.openclaw/agents/*/sessions/`
+## 🎯 What It Detects
 
-## Tech Stack
+Mission Control automatically extracts metadata from your sessions:
 
-- **Server:** Node.js, Express, WebSocket
-- **Web UI:** React 19, Vite, shadcn/ui, TailwindCSS 4
-- **Data source:** Direct session file reads from `~/.openclaw/agents/`
+- **Repository & Branch** — From `git worktree`, `git checkout`, `cd ~/Code/...` commands
+- **Pull Requests** — From `gh pr create`, `gh pr view`, `gh pr merge` outputs
+- **Deploy Previews** — Netlify and Vercel URLs from tool outputs
+- **Session Type** — Inferred from tool usage patterns (exec, file ops, web search, etc.)
+- **Activity Status** — Active (<5min), Idle (5-60min), Completed (>60min)
 
-## Development
+## 🏗️ Architecture
+
+Mission Control runs as a standalone local service:
+
+```
+┌─────────────────┐
+│  Session Files  │ ~/.openclaw/agents/*/sessions/*.jsonl
+└────────┬────────┘
+         │ (file watch)
+         ▼
+┌─────────────────┐
+│ Session Monitor │ Detects changes and extracts metadata
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Metadata Cache  │ In-memory + persistent snapshot
+└────────┬────────┘
+         │
+         ├──────────────┐
+         ▼              ▼
+    REST API      WebSocket
+         │              │
+         └──────┬───────┘
+                ▼
+         ┌──────────────┐
+         │  React UI    │ Dashboard at localhost:3030
+         └──────────────┘
+```
+
+**Key Components:**
+- **Server** (`server/`): Node.js + Express + WebSocket
+- **Web UI** (`web/`): React 19 + Vite + shadcn/ui + Tailwind
+- **CLI** (`bin/mission-control`): Start/stop/status commands
+- **Metadata Extractors** (`server/lib/extractors.js`): Parse session files for context
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed technical design.
+
+## 🛠️ Development
 
 ```bash
 # Install dependencies
-npm install # (handled by install.sh)
+./install.sh
 
-# Start server (dev mode)
+# Start server in dev mode
 cd server && npm run dev
 
-# Start web UI (separate terminal)
+# Start web UI in dev mode (separate terminal)
 cd web && npm run dev
+
+# Build for production
+cd web && npm run build
 ```
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for implementation details.
+### Project Structure
 
-## License
+```
+openclaw-mission-control/
+├── server/              # Backend (Express + WebSocket)
+│   ├── index.js         # Main server
+│   └── lib/
+│       ├── metadata-cache.js      # Session cache
+│       ├── session-monitor.js     # File watcher
+│       ├── extractors.js          # Metadata extraction
+│       └── types.js               # Type definitions
+├── web/                 # Frontend (React + Vite)
+│   └── src/
+│       ├── App.jsx               # Main app
+│       ├── components/
+│       │   ├── SessionTable.jsx  # Session list
+│       │   └── SessionFilters.jsx # Filter controls
+│       └── components/ui/        # shadcn/ui components
+├── bin/
+│   └── mission-control  # CLI wrapper
+├── docs/                # Documentation
+├── install.sh           # Installation script
+└── README.md
+```
+
+## 🔧 Configuration
+
+Mission Control works out-of-the-box with sensible defaults.
+
+**Environment Variables:**
+- `MISSION_CONTROL_PORT` — Server port (default: 3030)
+
+**Cache Location:**
+- `~/.openclaw/mission-control/cache.json`
+
+Cache rebuilds automatically when stale (>24h) or on server restart.
+
+## 📋 Requirements
+
+- **Node.js v20+**
+- **OpenClaw** — Running gateway with active agent sessions
+- **Disk Access** — Read access to `~/.openclaw/agents/*/sessions/`
+
+## 🤝 Contributing
+
+Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup.
+
+**Areas for Contribution:**
+- Additional metadata extractors (Linear tickets, deploy statuses, error tracking)
+- UI enhancements (charts, timeline view, session history)
+- Export features (CSV, JSON, session reports)
+- Configuration UI
+- Mobile-responsive improvements
+
+## 📄 License
 
 MIT — see [LICENSE](LICENSE)
 
-## Links
+## 🔗 Links
 
 - [OpenClaw](https://openclaw.ai)
 - [ClaWHub Skills](https://clawhub.com)
-- [GitHub Issues](https://github.com/jackmarketon/openclaw-mission-control/issues)
+- [Documentation](docs/)
+- [Issues](https://github.com/jackmarketon/openclaw-mission-control/issues)
+
+---
+
+**Built for OpenClaw** — The AI agent framework for building autonomous, locally-hosted agents.
