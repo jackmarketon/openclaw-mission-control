@@ -219,6 +219,55 @@ export function extractPR(lines) {
 }
 
 /**
+ * Extract preview/deploy URLs from tool results
+ * @param {Array} lines - Parsed JSONL lines
+ * @returns {{url?: string, provider?: string, status?: string}}
+ */
+export function extractPreview(lines) {
+  let previewUrl, provider, status;
+
+  for (const line of lines) {
+    if (line.type !== 'message' || !line.message) continue;
+
+    const msg = line.message;
+
+    // Look for tool results with deploy URLs
+    if (msg.role === 'toolResult' && msg.content) {
+      const output = msg.content.map(c => c.text || '').join('\n');
+
+      // Detect Netlify deploy URLs
+      const netlifyMatch = output.match(/https:\/\/[a-z0-9-]+--[a-z0-9-]+\.netlify\.app/);
+      if (netlifyMatch) {
+        previewUrl = netlifyMatch[0];
+        provider = 'netlify';
+      }
+
+      // Detect Vercel deploy URLs
+      const vercelMatch = output.match(/https:\/\/[a-z0-9-]+\.vercel\.app/);
+      if (vercelMatch && !previewUrl) {
+        previewUrl = vercelMatch[0];
+        provider = 'vercel';
+      }
+
+      // Detect "Deploy preview ready" or similar status messages
+      if (output.match(/deploy.*ready|preview.*ready|deployed.*successfully/i)) {
+        status = 'ready';
+      } else if (output.match(/deploy.*pending|deploy.*progress|building/i)) {
+        status = 'building';
+      }
+    }
+  }
+
+  if (!previewUrl) return {};
+
+  const preview = { url: previewUrl };
+  if (provider) preview.provider = provider;
+  if (status) preview.status = status;
+
+  return preview;
+}
+
+/**
  * Infer session type from tool usage patterns
  * @param {number} toolCalls - Total tool invocations
  * @param {Array} lines - Parsed JSONL lines

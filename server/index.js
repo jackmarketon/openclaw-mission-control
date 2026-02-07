@@ -69,8 +69,9 @@ app.use((req, res, next) => {
   }
 });
 
-const server = app.listen(PORT, 'localhost', () => {
-  console.log(`Mission Control server running on http://localhost:${PORT}`);
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Mission Control server running on http://0.0.0.0:${PORT}`);
+  console.log(`Access from network: http://<your-ip>:${PORT}`);
 });
 
 // WebSocket for live updates

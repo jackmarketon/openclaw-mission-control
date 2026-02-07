@@ -58,6 +58,7 @@ export function SessionTable({ sessions }) {
             <TableHead>Repo</TableHead>
             <TableHead>Branch</TableHead>
             <TableHead className="w-[80px]">PR</TableHead>
+            <TableHead className="w-[120px]">Preview</TableHead>
             <TableHead className="w-[100px]">Status</TableHead>
             <TableHead className="w-[120px] text-right">Last Active</TableHead>
           </TableRow>
@@ -105,6 +106,22 @@ export function SessionTable({ sessions }) {
                   ) : (
                     <span className="text-gray-400">#{session.pr.number}</span>
                   )
+                ) : (
+                  <span className="text-gray-600">—</span>
+                )}
+              </TableCell>
+              <TableCell>
+                {session.preview ? (
+                  <a
+                    href={session.preview.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-purple-400 hover:text-purple-300 hover:underline text-sm flex items-center gap-1"
+                    title={session.preview.url}
+                  >
+                    {session.preview.provider === 'netlify' ? '🟣' : session.preview.provider === 'vercel' ? '▲' : '🔗'}
+                    {session.preview.status === 'ready' ? ' Ready' : session.preview.status === 'building' ? ' Building' : ' Preview'}
+                  </a>
                 ) : (
                   <span className="text-gray-600">—</span>
                 )}
