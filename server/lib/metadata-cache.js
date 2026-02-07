@@ -2,6 +2,7 @@ import fs from 'fs/promises';
 import { existsSync } from 'fs';
 import { join, basename } from 'path';
 import { homedir } from 'os';
+import { extractRepoAndBranch, extractPR, inferSessionType } from './extractors.js';
 
 /** @typedef {import('./types.js').SessionMetadata} SessionMetadata */
 /** @typedef {import('./types.js').CacheSnapshot} CacheSnapshot */
@@ -85,12 +86,25 @@ export class MetadataCache {
    */
   async _parseSessionFile(filePath, sessionId, agentId) {
     const content = await fs.readFile(filePath, 'utf-8');
-    const lines = content.trim().split('\n').filter(l => l.trim());
+    const rawLines = content.trim().split('\n').filter(l => l.trim());
+
+    if (rawLines.length === 0) return null;
+
+    // Parse all lines
+    const lines = [];
+    for (const raw of rawLines) {
+      try {
+        lines.push(JSON.parse(raw));
+      } catch (err) {
+        // Skip malformed lines
+        continue;
+      }
+    }
 
     if (lines.length === 0) return null;
 
-    // Parse first line (session metadata)
-    const first = JSON.parse(lines[0]);
+    // First line must be session metadata
+    const first = lines[0];
     if (first.type !== 'session') {
       console.warn(`Session ${sessionId} has invalid first line`);
       return null;
@@ -99,46 +113,27 @@ export class MetadataCache {
     let messageCount = 0;
     let toolCalls = 0;
     let lastTimestamp = first.timestamp;
-    let repo, repoOwner, branch;
 
-    // Scan messages for metadata extraction
+    // Count messages and tool calls
     for (const line of lines.slice(1)) {
-      try {
-        const entry = JSON.parse(line);
+      if (line.type === 'message') {
+        messageCount++;
+        if (line.timestamp) lastTimestamp = line.timestamp;
 
-        if (entry.type === 'message') {
-          messageCount++;
-          if (entry.timestamp) lastTimestamp = entry.timestamp;
-
-          // Count tool calls
-          if (entry.role === 'assistant' && entry.content) {
-            const toolUses = entry.content.filter(c => c.type === 'tool_use');
-            toolCalls += toolUses.length;
-
-            // Extract metadata from tool calls (basic implementation)
-            for (const tool of toolUses) {
-              if (tool.name === 'exec' && tool.input?.command) {
-                const cmd = tool.input.command;
-
-                // Detect git repo
-                if (cmd.includes('git remote get-url origin')) {
-                  // Would need tool_result to extract actual URL
-                  // Placeholder for now
-                }
-
-                // Detect branch
-                if (cmd.includes('git branch --show-current')) {
-                  // Would need tool_result
-                }
-              }
-            }
-          }
+        // Count tool calls from assistant messages
+        if (line.message?.role === 'assistant' && line.message.content) {
+          const toolUses = line.message.content.filter(c => c.type === 'toolCall');
+          toolCalls += toolUses.length;
         }
-      } catch (err) {
-        // Skip malformed lines
-        continue;
       }
     }
+
+    // Extract repo, branch, PR metadata
+    const { repo, repoOwner, branch } = extractRepoAndBranch(lines);
+    const pr = extractPR(lines);
+
+    // Infer session type
+    const type = inferSessionType(toolCalls, lines);
 
     // Determine status based on last activity
     const lastActiveMs = new Date(lastTimestamp).getTime();
@@ -149,16 +144,13 @@ export class MetadataCache {
     if (minutesAgo < 5) status = 'active';
     else if (minutesAgo < 60) status = 'idle';
 
-    // Infer session type (basic heuristic)
-    let type = 'unknown';
-    if (toolCalls > 5) type = 'coding'; // Simplification for now
-
     return {
       id: sessionId,
       agentId,
       repo,
       repoOwner,
       branch,
+      pr: Object.keys(pr).length > 0 ? pr : undefined,
       type,
       status,
       createdAt: first.timestamp,
