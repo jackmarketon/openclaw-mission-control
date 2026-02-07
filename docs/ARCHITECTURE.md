@@ -90,23 +90,32 @@ React dashboard:
 
 ## Session Metadata Schema
 
-Each session tracks:
+See [`docs/SCHEMA.md`](SCHEMA.md) for the complete schema definition and extraction rules.
+
+TypeScript definitions are in [`server/lib/types.js`](../server/lib/types.js) (JSDoc for Node.js compatibility).
+
+**Quick reference:**
 
 ```typescript
-{
-  id: string;           // Session key
-  agent: string;        // Agent ID (lowlight, wrenchlogr, etc.)
-  type: string;         // coding | research | testing | unknown
-  repo?: string;        // Repository name
-  branch?: string;      // Current branch
-  pr?: string;          // PR number or URL
-  preview?: string;     // Deploy preview URL
-  status: string;       // active | idle | completed
-  lastActive: string;   // ISO timestamp
+interface SessionMetadata {
+  id: string;
+  agentId: string;
+  repo?: string;
+  repoOwner?: string;
+  branch?: string;
+  pr?: { number, url, title?, state? };
+  preview?: { url, provider, status? };
+  type: 'coding' | 'research' | 'testing' | 'deployment' | 'chat' | 'unknown';
+  status: 'active' | 'idle' | 'completed';
+  createdAt: string;
+  lastActive: string;
+  messageCount: number;
+  toolCalls: number;
+  linear?: { ticketId, ticketUrl, ticketTitle? };
+  workspace?: string;
+  cwd: string;
 }
 ```
-
-See `docs/SCHEMA.md` for full details (to be created).
 
 ## Type Inference
 
