@@ -57,8 +57,11 @@ export function extractRepoAndBranch(lines) {
           const cdMatch = cmd.match(/cd\s+~\/Code\/([^\/\s]+)\/([^\s&|;]+)/);
           if (cdMatch && !repo) {
             const [, owner, repoName] = cdMatch;
-            repoOwner = owner;
-            repo = repoName;
+            // Validate repo name (alphanumeric + hyphens/underscores)
+            if (repoName && /^[a-zA-Z0-9_-]+$/.test(repoName)) {
+              repoOwner = owner;
+              repo = repoName;
+            }
           }
         }
       }
@@ -78,16 +81,21 @@ export function extractRepoAndBranch(lines) {
       const remoteMatch = output.match(/git@github\.com:([^\/\s]+)\/([^\s\.]+)(?:\.git)?/);
       if (remoteMatch && !repo) {
         const [, owner, repoName] = remoteMatch;
-        repoOwner = owner;
-        repo = repoName;
+        if (repoName && /^[a-zA-Z0-9_-]+$/.test(repoName)) {
+          repoOwner = owner;
+          repo = repoName;
+        }
       }
 
       // Parse https GitHub URLs
       const httpsMatch = output.match(/https:\/\/github\.com\/([^\/\s]+)\/([^\s\.]+)/);
       if (httpsMatch && !repo) {
         const [, owner, repoName] = httpsMatch;
-        repoOwner = owner;
-        repo = repoName.replace(/\.git$/, '');
+        const cleaned = repoName.replace(/\.git$/, '');
+        if (cleaned && /^[a-zA-Z0-9_-]+$/.test(cleaned)) {
+          repoOwner = owner;
+          repo = cleaned;
+        }
       }
     }
   }
@@ -115,6 +123,7 @@ export function extractRepoAndBranch(lines) {
  */
 export function extractPR(lines) {
   let prNumber, prUrl, prTitle, prState;
+  let lastPRCommand = null;
 
   for (const line of lines) {
     if (line.type !== 'message' || !line.message) continue;
@@ -127,15 +136,27 @@ export function extractPR(lines) {
         if (item.type === 'toolCall' && item.name === 'exec' && item.arguments?.command) {
           const cmd = item.arguments.command;
 
+          // Track last PR command to correlate with results
+          if (cmd.includes('gh pr')) {
+            lastPRCommand = { id: item.id, cmd };
+          }
+
           // Detect gh pr create
           if (cmd.includes('gh pr create')) {
-            // Will look for URL in tool result
+            // Mark that PR creation happened (we'll get URL from result)
           }
 
           // Detect gh pr view with number
           const viewMatch = cmd.match(/gh\s+pr\s+view\s+(\d+)/);
-          if (viewMatch && !prNumber) {
+          if (viewMatch) {
             prNumber = parseInt(viewMatch[1], 10);
+          }
+
+          // Detect gh pr merge (PR is being merged)
+          const mergeMatch = cmd.match(/gh\s+pr\s+merge\s+(\d+)/);
+          if (mergeMatch) {
+            prNumber = parseInt(mergeMatch[1], 10);
+            prState = 'merged';
           }
         }
       }
@@ -151,15 +172,50 @@ export function extractPR(lines) {
         const [fullUrl, owner, repo, number] = urlMatch;
         prUrl = fullUrl;
         prNumber = parseInt(number, 10);
+
+        // If this was a gh pr view command, try to extract title
+        if (lastPRCommand?.cmd.includes('gh pr view')) {
+          const titleMatch = output.match(/title:\s*(.+)/i);
+          if (titleMatch) {
+            prTitle = titleMatch[1].trim();
+          }
+
+          // Extract state from gh pr view
+          const stateMatch = output.match(/state:\s*(OPEN|CLOSED|MERGED)/i);
+          if (stateMatch && !prState) {
+            prState = stateMatch[1].toLowerCase();
+          }
+        }
+      }
+
+      // Parse JSON output from gh pr view --json
+      try {
+        const jsonMatch = output.match(/\{[\s\S]*"number"[\s\S]*\}/);
+        if (jsonMatch) {
+          const prData = JSON.parse(jsonMatch[0]);
+          if (prData.number) prNumber = prData.number;
+          if (prData.url) prUrl = prData.url;
+          if (prData.title) prTitle = prData.title;
+          if (prData.state) prState = prData.state.toLowerCase();
+        }
+      } catch {
+        // Not JSON or malformed, skip
       }
     }
   }
 
-  if (!prUrl && prNumber) {
-    // Can't construct URL without repo info — will be filled in later if repo is known
-  }
+  // Construct URL if we have number but no URL (fallback)
+  // This would require repo info from parent context — skip for now
 
-  return prNumber ? { number: prNumber, url: prUrl, title: prTitle, state: prState } : {};
+  if (!prNumber) return {};
+
+  // Build PR object with only defined fields
+  const pr = { number: prNumber };
+  if (prUrl) pr.url = prUrl;
+  if (prTitle) pr.title = prTitle;
+  if (prState) pr.state = prState;
+
+  return pr;
 }
 
 /**
