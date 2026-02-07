@@ -65,6 +65,20 @@ function App() {
   // Filter sessions
   const filteredSessions = useMemo(() => {
     return sessions.filter(session => {
+      // Smart default filtering (hide noise):
+      // - Hide inactive sessions UNLESS they have an open PR
+      // - Hide active sessions WITH a closed/merged PR
+      const hasOpenPR = session.pr && (!session.pr.state || session.pr.state === 'open');
+      const hasClosedPR = session.pr && (session.pr.state === 'closed' || session.pr.state === 'merged');
+      
+      if (session.status === 'completed' && !hasOpenPR) {
+        return false; // Hide completed sessions without open PR
+      }
+      
+      if (session.status === 'active' && hasClosedPR) {
+        return false; // Hide active sessions with closed/merged PR
+      }
+
       // Search filter
       if (filters.search) {
         const search = filters.search.toLowerCase();
