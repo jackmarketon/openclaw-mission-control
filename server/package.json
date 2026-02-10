@@ -1,0 +1,20 @@
+{
+  "name": "mission-control-server",
+  "version": "0.1.0",
+  "description": "Mission Control server - monitors OpenClaw sessions and serves dashboard API",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "dependencies": {
+    "express": "^5.0.1",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {},
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
