@@ -1,11 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { SessionTable } from '@/components/SessionTable';
+import { SessionFilters } from '@/components/SessionFilters';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 function App() {
   const [sessions, setSessions] = useState([]);
   const [wsStatus, setWsStatus] = useState('disconnected');
   const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState({
+    search: '',
+    type: 'all',
+    status: 'all',
+  });
 
   useEffect(() => {
     // Fetch initial session data
@@ -55,6 +61,46 @@ function App() {
 
     return () => ws.close();
   }, []);
+
+  // Filter sessions
+  const filteredSessions = useMemo(() => {
+    return sessions.filter(session => {
+      // Smart default filtering (hide noise):
+      // - Hide inactive sessions UNLESS they have an open PR
+      // - Hide active sessions WITH a closed/merged PR
+      const hasOpenPR = session.pr && (!session.pr.state || session.pr.state === 'open');
+      const hasClosedPR = session.pr && (session.pr.state === 'closed' || session.pr.state === 'merged');
+      
+      if (session.status === 'completed' && !hasOpenPR) {
+        return false; // Hide completed sessions without open PR
+      }
+      
+      if (session.status === 'active' && hasClosedPR) {
+        return false; // Hide active sessions with closed/merged PR
+      }
+
+      // Search filter
+      if (filters.search) {
+        const search = filters.search.toLowerCase();
+        const matchesRepo = session.repo?.toLowerCase().includes(search);
+        const matchesBranch = session.branch?.toLowerCase().includes(search);
+        const matchesAgent = session.agentId?.toLowerCase().includes(search);
+        if (!matchesRepo && !matchesBranch && !matchesAgent) return false;
+      }
+
+      // Type filter
+      if (filters.type !== 'all' && session.type !== filters.type) return false;
+
+      // Status filter
+      if (filters.status !== 'all' && session.status !== filters.status) return false;
+
+      return true;
+    });
+  }, [sessions, filters]);
+
+  const handleFilterChange = (newFilters) => {
+    setFilters(prev => ({ ...prev, ...newFilters }));
+  };
 
   const stats = {
     total: sessions.length,
@@ -113,7 +159,14 @@ function App() {
         {loading ? (
           <div className="text-center py-12 text-gray-500">Loading sessions...</div>
         ) : (
-          <SessionTable sessions={sessions} />
+          <>
+            <SessionFilters
+              filters={filters}
+              onFilterChange={handleFilterChange}
+              resultCount={filteredSessions.length}
+            />
+            <SessionTable sessions={filteredSessions} />
+          </>
         )}
       </main>
     </div>
