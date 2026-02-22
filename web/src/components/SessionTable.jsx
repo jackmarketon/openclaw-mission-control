@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import {
   Table,
@@ -40,6 +41,8 @@ function formatTimestamp(iso) {
 }
 
 export function SessionTable({ sessions }) {
+  const [expandedRow, setExpandedRow] = useState(null);
+
   if (!sessions || sessions.length === 0) {
     return (
       <div className="text-center py-12 text-gray-500">
@@ -48,11 +51,20 @@ export function SessionTable({ sessions }) {
     );
   }
 
+  const toggleRow = (sessionId) => {
+    setExpandedRow(expandedRow === sessionId ? null : sessionId);
+  };
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
+  };
+
   return (
     <div className="rounded-md border border-gray-800">
       <Table>
         <TableHeader>
           <TableRow className="border-gray-800 hover:bg-gray-900/50">
+            <TableHead className="w-[50px]"></TableHead>
             <TableHead className="w-[100px]">Type</TableHead>
             <TableHead className="w-[120px]">Agent</TableHead>
             <TableHead>Repo</TableHead>
@@ -65,11 +77,16 @@ export function SessionTable({ sessions }) {
         </TableHeader>
         <TableBody>
           {sessions.map((session) => (
-            <TableRow 
-              key={session.id} 
-              className="border-gray-800 hover:bg-gray-900/50"
-            >
-              <TableCell>
+            <>
+              <TableRow 
+                key={session.id} 
+                className="border-gray-800 hover:bg-gray-900/50 cursor-pointer"
+                onClick={() => toggleRow(session.id)}
+              >
+                <TableCell className="text-gray-500">
+                  {expandedRow === session.id ? '▼' : '▶'}
+                </TableCell>
+                <TableCell>
                 <Badge className={typeColors[session.type] || typeColors.unknown}>
                   {session.type}
                 </Badge>
@@ -134,7 +151,92 @@ export function SessionTable({ sessions }) {
               <TableCell className="text-right text-sm text-gray-500">
                 {formatTimestamp(session.lastActive)}
               </TableCell>
-            </TableRow>
+              </TableRow>
+              
+              {expandedRow === session.id && (
+                <TableRow className="border-gray-800 bg-gray-900/30">
+                  <TableCell colSpan={9} className="p-6">
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <h3 className="text-sm font-semibold mb-3 text-gray-300">Session Details</h3>
+                        <dl className="space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <dt className="text-gray-500">Session ID:</dt>
+                            <dd className="font-mono text-gray-400 flex items-center gap-2">
+                              {session.id.slice(0, 8)}...
+                              <button
+                                onClick={(e) => { e.stopPropagation(); copyToClipboard(session.id); }}
+                                className="text-blue-400 hover:text-blue-300"
+                                title="Copy full ID"
+                              >
+                                📋
+                              </button>
+                            </dd>
+                          </div>
+                          <div className="flex justify-between">
+                            <dt className="text-gray-500">Created:</dt>
+                            <dd className="text-gray-400">{new Date(session.createdAt).toLocaleString()}</dd>
+                          </div>
+                          <div className="flex justify-between">
+                            <dt className="text-gray-500">Messages:</dt>
+                            <dd className="text-gray-400">{session.messageCount}</dd>
+                          </div>
+                          <div className="flex justify-between">
+                            <dt className="text-gray-500">Tool Calls:</dt>
+                            <dd className="text-gray-400">{session.toolCalls}</dd>
+                          </div>
+                          {session.cwd && (
+                            <div className="flex justify-between">
+                              <dt className="text-gray-500">Working Dir:</dt>
+                              <dd className="font-mono text-xs text-gray-400">{session.cwd}</dd>
+                            </div>
+                          )}
+                        </dl>
+                      </div>
+
+                      <div>
+                        <h3 className="text-sm font-semibold mb-3 text-gray-300">Links</h3>
+                        <div className="space-y-2">
+                          {session.pr?.url && (
+                            <a
+                              href={session.pr.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block text-sm text-blue-400 hover:text-blue-300 hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              → View Pull Request #{session.pr.number}
+                            </a>
+                          )}
+                          {session.preview?.url && (
+                            <a
+                              href={session.preview.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block text-sm text-purple-400 hover:text-purple-300 hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              → View Deploy Preview
+                            </a>
+                          )}
+                          {session.repo && session.repoOwner && (
+                            <a
+                              href={`https://github.com/${session.repoOwner}/${session.repo}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block text-sm text-gray-400 hover:text-gray-300 hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              → View Repository
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+            </>
           ))}
         </TableBody>
       </Table>
